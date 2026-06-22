@@ -1,0 +1,4 @@
+# Dev-only toolchain for Python codegen + packaging. Not runtime deps of alchemist_contracts.
+datamodel-code-generator>=0.26   # CP-2 openapi.yaml -> pydantic v2 models
+build>=1.2                       # python -m build (sdist/wheel)
+twine>=5.1                       # publish to CodeArtifact

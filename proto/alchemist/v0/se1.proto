@@ -1,0 +1,94 @@
+// SE-1 wire (v0) — the real-time seam between the voice EDGE (middleware: Telnyx + LiveKit + STT/TTS)
+// and the AWS PLATFORM (backend: AgentCore + workflows).
+//
+//   • Utterance       edge → AWS   (STT transcript chunks of the caller)
+//   • ReplyText       AWS → edge   (agent reply text, streamed to TTS)
+//   • CallEvent       edge ↔ AWS   (call lifecycle: started/answered/ended/barge-in/dtmf/escalation)
+//
+// Consumers: middleware (Py) and backend (Py). Middleware NEVER touches AppSync (CP-3); all live data
+// reaches the dashboard via the backend publishing to CP-3 after consuming this wire.
+//
+// Latency budget lives on the edge (STT≈210 · LLM≈330 · TTS≈200 · e2e p95 ≤740ms). The wire carries
+// seq + timestamps so both peers can attribute latency across the seam.
+syntax = "proto3";
+
+package alchemist.v0;
+
+import "google/protobuf/timestamp.proto";
+import "alchemist/v0/domain.proto";
+
+// ───────────────────────── edge → AWS : caller utterances ─────────────────────────
+
+// A chunk of recognized caller speech. Partial chunks stream as STT decodes; is_final marks a
+// stable segment the agent may act on. seq is monotonic per (tenant_id, call_id).
+message Utterance {
+  string tenant_id = 1;
+  string call_id = 2;
+  uint64 seq = 3;
+  string text = 4;
+  bool is_final = 5;
+  optional float confidence = 6; // STT confidence 0.0-1.0 for the segment
+  optional string lang = 7;      // BCP-47, e.g. "en-US"
+  google.protobuf.Timestamp ts = 8;
+}
+
+// ───────────────────────── AWS → edge : agent reply text ─────────────────────────
+
+// A chunk of agent reply text for the edge to synthesize (TTS). The agent streams tokens; the edge
+// may begin TTS on each chunk. end_of_turn marks the end of the agent's turn (release the floor).
+message ReplyText {
+  string tenant_id = 1;
+  string call_id = 2;
+  uint64 seq = 3;
+  string text = 4;
+  bool end_of_turn = 5;
+  optional string voice = 6;     // TTS voice id override; edge default if unset
+  optional bool barge_in_ok = 7; // caller may interrupt this chunk
+  google.protobuf.Timestamp ts = 8;
+}
+
+// ───────────────────────── edge ↔ AWS : call lifecycle events ─────────────────────────
+
+enum CallEventType {
+  CALL_EVENT_TYPE_UNSPECIFIED = 0;
+  CALL_EVENT_TYPE_STARTED = 1;       // inbound call accepted at the edge
+  CALL_EVENT_TYPE_ANSWERED = 2;      // media path up (LiveKit room joined)
+  CALL_EVENT_TYPE_ENDED = 3;         // call torn down (see hangup_cause)
+  CALL_EVENT_TYPE_BARGE_IN = 4;      // caller interrupted agent speech
+  CALL_EVENT_TYPE_DTMF = 5;          // DTMF digit(s) pressed (see dtmf)
+  CALL_EVENT_TYPE_ESCALATION = 6;    // agent requested human handoff
+  CALL_EVENT_TYPE_HANDOFF_JOINED = 7; // human joined the LiveKit room
+}
+
+// A call lifecycle/control event on the seam. metadata carries transport-specific detail
+// (e.g. Telnyx call_control_id, LiveKit room name) without widening the typed surface.
+message CallEvent {
+  string tenant_id = 1;
+  string call_id = 2;
+  CallEventType type = 3;
+  google.protobuf.Timestamp ts = 4;
+
+  optional string from_number = 5;   // E.164 caller
+  optional string to_number = 6;     // E.164 destination (the business)
+  optional string dtmf = 7;          // digits for CALL_EVENT_TYPE_DTMF
+  optional string hangup_cause = 8;  // for CALL_EVENT_TYPE_ENDED
+  CallBrief brief = 9;               // populated on ESCALATION (the handoff brief)
+  map<string, string> metadata = 10; // transport detail: call_control_id, room, etc.
+}
+
+// ───────────────────────── Service ─────────────────────────
+
+// The bidirectional session bridge. The edge opens one stream per call; utterances + events flow up,
+// reply-text + events flow down. (Codegen emits gRPC stubs; transport may be adapted downstream.)
+service Se1Bridge {
+  // Edge → AWS: stream caller utterances for a call.
+  rpc StreamUtterances(stream Utterance) returns (stream ReplyText);
+
+  // Edge → AWS: report a single call lifecycle event.
+  rpc ReportCallEvent(CallEvent) returns (CallEventAck);
+}
+
+message CallEventAck {
+  string call_id = 1;
+  bool accepted = 2;
+}

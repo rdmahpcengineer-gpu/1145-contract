@@ -1,0 +1,16 @@
+# Generated stubs — never committed; produced by `make gen`.
+/gen/
+/dist/
+/build/
+*.egg-info/
+
+# Deps
+/node_modules/
+__pycache__/
+*.pyc
+.venv/
+
+# Tooling / local
+.DS_Store
+*.log
+.npmrc.local

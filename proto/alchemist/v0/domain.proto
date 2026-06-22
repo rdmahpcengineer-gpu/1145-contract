@@ -1,0 +1,124 @@
+// Alchemist Business OS — domain source model (v0).
+//
+// These messages are the SINGLE conceptual model that every seam mirrors:
+//   • CP-3 GraphQL (graphql/schema.graphql) mirrors these names + shapes for the live feed.
+//   • CP-2 OpenAPI (openapi/openapi.yaml) mirrors these for REST reads/commands.
+//   • SE-1 wire (se1.proto) and AC-2 tools (ac2.proto) import these.
+//
+// Tenant is a first-class field on every cross-boundary entity (see CLAUDE.md constitution).
+syntax = "proto3";
+
+package alchemist.v0;
+
+import "google/protobuf/timestamp.proto";
+
+// ───────────────────────── Enums (mirror CP-3 enums) ─────────────────────────
+
+// Live state machine of a call. Mirrors GraphQL `enum CallState`.
+enum CallState {
+  CALL_STATE_UNSPECIFIED = 0;
+  CALL_STATE_LISTEN = 1; // capturing caller audio / STT
+  CALL_STATE_THINK = 2;  // agent reasoning (AgentCore)
+  CALL_STATE_SPEAK = 3;  // TTS reply streaming to caller
+  CALL_STATE_HAND = 4;   // handoff to a human in progress
+  CALL_STATE_FALL = 5;   // fallback (agent could not handle)
+}
+
+// Who is speaking on a transcript turn. Mirrors GraphQL `enum Speaker`.
+enum Speaker {
+  SPEAKER_UNSPECIFIED = 0;
+  SPEAKER_AI = 1;
+  SPEAKER_CALLER = 2;
+}
+
+// Rollup window for KPIs / conversation reads. Mirrors GraphQL `enum Range`.
+enum Range {
+  RANGE_UNSPECIFIED = 0;
+  RANGE_TODAY = 1;
+  RANGE_D7 = 2;
+  RANGE_D30 = 3;
+}
+
+// Terminal outcome of a conversation. Mirrors GraphQL `enum CallResult`.
+enum CallResult {
+  CALL_RESULT_UNSPECIFIED = 0;
+  CALL_RESULT_AUTONOMOUS = 1; // handled fully by the agent
+  CALL_RESULT_ESCALATED = 2;  // handed to a human
+  CALL_RESULT_FALLBACK = 3;   // dropped to fallback path
+}
+
+// ───────────────────────── Core domain messages ─────────────────────────
+
+// A single transcript turn. Mirrors GraphQL `type TranscriptTurn`.
+// callId is carried so CP-3 `onTranscriptAppended(callId)` can filter (see schema.graphql footgun note).
+message TranscriptTurn {
+  string call_id = 1;
+  Speaker speaker = 2;
+  string text = 3;
+  google.protobuf.Timestamp ts = 4;
+}
+
+// The one-way A2A handoff brief shown in the LiveRoom. Mirrors GraphQL `type CallBrief`.
+message CallBrief {
+  optional string name = 1;
+  optional string phone = 2; // E.164; GraphQL surfaces as AWSPhone
+  optional string service = 3;
+  optional string urgency = 4;
+  optional string address = 5;
+  optional string ask = 6;
+}
+
+// One active call in the live feed. Mirrors GraphQL `type Call` / `input CallInput`.
+message Call {
+  string id = 1;
+  string tenant_id = 2; // first-class tenant scoping; CP-3 filters onCallUpdated(tenantId)
+  string caller_name = 3;
+  string intent = 4;
+  CallState state = 5;
+  optional string timer = 6;
+  repeated string flow = 7;       // media+reasoning path, e.g. ["SIP","RTP","LiveKit","STT","AI"]
+  optional string target = 8;     // outcome target, e.g. "Booking" / "Escalate → owner"
+  optional int32 sentiment = 9;   // live score 0-100 (ML + memory → CP-3 → UI-3)
+  CallBrief brief = 10;
+  repeated TranscriptTurn transcript = 11;
+  google.protobuf.Timestamp updated_at = 12;
+}
+
+// A captured lead. Mirrors GraphQL `type Lead` / `input LeadInput`.
+message Lead {
+  string id = 1;
+  string tenant_id = 2;
+  string title = 3;
+  string contact = 4;
+  int32 score = 5;
+  bool hot = 6;
+  optional string intent = 7;
+  optional string budget = 8;
+  optional string urgency = 9;
+  optional int32 contact_attempts = 10;
+  optional string recommended_action = 11;
+  optional string source = 12;
+  google.protobuf.Timestamp captured_at = 13;
+}
+
+// An archived conversation row. Mirrors GraphQL `type Conversation`.
+message Conversation {
+  string id = 1;
+  string tenant_id = 2;
+  google.protobuf.Timestamp ts = 3;
+  string caller = 4;
+  string intent = 5;
+  CallResult result = 6;
+  optional int32 revenue = 7;
+}
+
+// KPI rollup for the overview/revenue panels. Mirrors GraphQL `type Kpi`.
+message Kpi {
+  string tenant_id = 1;
+  Range range = 2;
+  int32 revenue_rescued = 3;
+  int32 appointments = 4;
+  int32 zero_touch_rate = 5;
+  int32 hot_leads = 6;
+  repeated int32 spark = 7;
+}

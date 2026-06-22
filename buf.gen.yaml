@@ -1,0 +1,21 @@
+# Codegen template: proto (SE-1 + AC-2 + domain) → TS + Py.
+# Run: buf generate proto   (proto/ holds the buf module).
+# Uses buf remote plugins, so no local protoc/protoc-gen-* install is needed (network required).
+version: v2
+managed:
+  enabled: true
+plugins:
+  # ── TypeScript (@alchemist/contracts) ──
+  - remote: buf.build/bufbuild/es:v2.2.3
+    out: gen/ts
+    opt:
+      - target=ts
+      - import_extension=js
+
+  # ── Python (alchemist_contracts) ──
+  - remote: buf.build/protocolbuffers/python:v28.3
+    out: gen/py
+  - remote: buf.build/protocolbuffers/pyi:v28.3
+    out: gen/py
+  - remote: buf.build/grpc/python:v1.67.1
+    out: gen/py

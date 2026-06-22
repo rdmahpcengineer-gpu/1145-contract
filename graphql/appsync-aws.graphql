@@ -1,0 +1,21 @@
+# CODEGEN-ONLY shim. AppSync provides these scalars + auth directives natively, so the real
+# contract (schema.graphql) does NOT declare them. graphql-js (graphql-codegen) would otherwise
+# reject the unknown scalars/directives at parse time. Do NOT feed this file to AppSync/CDK.
+
+scalar AWSDateTime
+scalar AWSDate
+scalar AWSTime
+scalar AWSTimestamp
+scalar AWSEmail
+scalar AWSPhone
+scalar AWSURL
+scalar AWSIPAddress
+scalar AWSJSON
+
+directive @aws_cognito_user_pools(cognito_groups: [String]) on OBJECT | FIELD_DEFINITION
+directive @aws_iam on OBJECT | FIELD_DEFINITION
+directive @aws_api_key on OBJECT | FIELD_DEFINITION
+directive @aws_oidc on OBJECT | FIELD_DEFINITION
+directive @aws_lambda on OBJECT | FIELD_DEFINITION
+directive @aws_auth(cognito_groups: [String]) on FIELD_DEFINITION
+directive @aws_subscribe(mutations: [String!]!) on FIELD_DEFINITION

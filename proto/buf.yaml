@@ -1,0 +1,17 @@
+# buf module for alchemist-contracts (SE-1 wire + AC-2 tool schema).
+# Proto is the DOMAIN SOURCE MODEL — GraphQL (CP-3) and OpenAPI (CP-2) mirror these messages.
+version: v2
+modules:
+  - path: .
+deps:
+  - buf.build/googleapis/googleapis
+lint:
+  use:
+    - STANDARD
+  except:
+    # v0 packages are intentionally pre-stable; allow the v0 suffix.
+    - PACKAGE_VERSION_SUFFIX
+breaking:
+  use:
+    # The seam is a wire contract: protect wire + JSON compatibility.
+    - WIRE_JSON

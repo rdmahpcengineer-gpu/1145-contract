@@ -1,0 +1,49 @@
+{
+  "name": "@alchemist/contracts",
+  "version": "0.0.0",
+  "description": "Single source of truth for every type crossing a service boundary in Alchemist Business OS (SE-1 proto · AC-2 tools · CP-2 OpenAPI · CP-3 GraphQL). Stubs are generated, never hand-written.",
+  "license": "UNLICENSED",
+  "private": false,
+  "type": "module",
+  "files": [
+    "dist",
+    "graphql/schema.graphql",
+    "openapi/openapi.yaml"
+  ],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./graphql": {
+      "types": "./dist/graphql.d.ts",
+      "default": "./dist/graphql.js"
+    },
+    "./openapi": {
+      "types": "./dist/openapi.d.ts",
+      "default": "./dist/openapi.js"
+    }
+  },
+  "scripts": {
+    "clean": "rm -rf gen dist",
+    "gen:proto": "buf generate proto",
+    "gen:graphql": "graphql-codegen --config codegen.ts",
+    "gen:openapi": "openapi-typescript openapi/openapi.yaml -o gen/ts/openapi.ts",
+    "gen": "npm run gen:proto && npm run gen:graphql && npm run gen:openapi && node scripts/make-barrels.mjs",
+    "build": "npm run gen && tsc -p tsconfig.json",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@bufbuild/protobuf": "^2.2.3"
+  },
+  "devDependencies": {
+    "@bufbuild/buf": "^1.47.2",
+    "@graphql-codegen/cli": "^5.0.3",
+    "@graphql-codegen/typescript": "^4.1.2",
+    "graphql": "^16.9.0",
+    "openapi-typescript": "^7.4.4",
+    "typescript": "^5.7.2"
+  }
+}

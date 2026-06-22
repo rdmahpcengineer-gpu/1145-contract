@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "alchemist-contracts"
+version = "0.0.0"
+description = "Single source of truth for every type crossing a service boundary in Alchemist Business OS (SE-1 proto · AC-2 tools · CP-2 OpenAPI · CP-3 GraphQL). Stubs are generated, never hand-written."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "UNLICENSED" }
+dependencies = [
+  "protobuf>=5.28,<7",
+  "grpcio>=1.67",
+]
+
+[project.optional-dependencies]
+# CP-2 REST models are generated as pydantic v2 classes.
+openapi = ["pydantic>=2.9"]
+
+# NOTE: the generated code under gen/py/ must exist before building (run `make gen` or
+# `buf generate proto`). Both the proto namespace package (alchemist.v0.*) and the
+# convenience facade (alchemist_contracts) are shipped.
+[tool.setuptools.packages.find]
+where = ["gen/py", "python"]
+namespaces = true
+
+[tool.setuptools.package-data]
+"*" = ["*.pyi"]

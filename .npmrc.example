@@ -1,0 +1,7 @@
+# CodeArtifact registry for @alchemist scope. Copy to .npmrc and fill in, or generate the token:
+#
+#   aws codeartifact login --tool npm --domain <DOMAIN> --domain-owner <ACCT_ID> --repository <REPO>
+#
+# which writes the lines below for you (do NOT commit the resulting .npmrc with a live token).
+@alchemist:registry=https://<DOMAIN>-<ACCT_ID>.d.codeartifact.<REGION>.amazonaws.com/npm/<REPO>/
+//<DOMAIN>-<ACCT_ID>.d.codeartifact.<REGION>.amazonaws.com/npm/<REPO>/:_authToken=${CODEARTIFACT_AUTH_TOKEN}

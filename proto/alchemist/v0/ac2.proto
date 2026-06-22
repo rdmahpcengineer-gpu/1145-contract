@@ -1,0 +1,149 @@
+// AC-2 tool schema (v0) — the tool-call contract AgentCore's Tool Gateway invokes.
+//
+// During a call, the reasoning agent (AC) selects a tool; the Tool Gateway invokes it against the
+// backend (workflows / data plane) and returns a typed result the agent can speak back to the caller.
+//
+// These tools are the AGENT's capabilities. The same business actions are also exposed to the
+// dashboard operator over CP-2 REST (openapi.yaml) — keep names + fields aligned across both.
+//
+// Tenant is first-class on every invocation. call_id ties a tool call to the live SE-1 session.
+syntax = "proto3";
+
+package alchemist.v0;
+
+import "google/protobuf/timestamp.proto";
+import "alchemist/v0/domain.proto";
+
+// ───────────────────────── Tool registry ─────────────────────────
+
+enum ToolName {
+  TOOL_NAME_UNSPECIFIED = 0;
+  TOOL_NAME_CHECK_AVAILABILITY = 1; // look up open appointment slots
+  TOOL_NAME_BOOK_APPOINTMENT = 2;   // book a slot
+  TOOL_NAME_CAPTURE_LEAD = 3;       // record a lead
+  TOOL_NAME_ESCALATE_TO_HUMAN = 4;  // hand the call to a human
+  TOOL_NAME_SCHEDULE_CALLBACK = 5;  // queue an outbound callback
+  TOOL_NAME_MARK_WON = 6;           // mark a lead/deal won with revenue
+}
+
+// ───────────────────────── Per-tool inputs ─────────────────────────
+
+message CheckAvailabilityInput {
+  string service = 1;
+  optional string date = 2;       // YYYY-MM-DD; window if combined with date_to
+  optional string date_to = 3;
+  optional int32 party_size = 4;
+}
+
+message BookAppointmentInput {
+  string service = 1;
+  google.protobuf.Timestamp start_time = 2;
+  string customer_name = 3;
+  optional string phone = 4;      // E.164
+  optional string notes = 5;
+}
+
+message CaptureLeadInput {
+  string title = 1;
+  string contact = 2;
+  optional string intent = 3;
+  optional string budget = 4;
+  optional string urgency = 5;
+  optional string source = 6;
+}
+
+message EscalateToHumanInput {
+  string reason = 1;
+  CallBrief brief = 2;            // the A2A handoff brief (mirrors SE-1 escalation event)
+}
+
+message ScheduleCallbackInput {
+  string phone = 1;              // E.164
+  google.protobuf.Timestamp at = 2;
+  optional string reason = 3;
+}
+
+message MarkWonInput {
+  string lead_id = 1;            // or conversation id
+  int32 revenue = 2;
+}
+
+// ───────────────────────── Per-tool results ─────────────────────────
+
+message AppointmentSlot {
+  google.protobuf.Timestamp start_time = 1;
+  google.protobuf.Timestamp end_time = 2;
+  bool available = 3;
+}
+
+message CheckAvailabilityResult {
+  repeated AppointmentSlot slots = 1;
+}
+
+message BookAppointmentResult {
+  string appointment_id = 1;
+  bool confirmed = 2;
+  google.protobuf.Timestamp start_time = 3;
+}
+
+message CaptureLeadResult {
+  Lead lead = 1;
+}
+
+message EscalateToHumanResult {
+  string escalation_id = 1;
+  bool queued = 2;
+}
+
+message ScheduleCallbackResult {
+  string callback_id = 1;
+  google.protobuf.Timestamp scheduled_at = 2;
+}
+
+message MarkWonResult {
+  bool updated = 1;
+  int32 revenue = 2;
+}
+
+// ───────────────────────── Invocation envelope ─────────────────────────
+
+// What the Tool Gateway sends to the backend tool implementation.
+message ToolInvocation {
+  string tenant_id = 1;
+  string call_id = 2;
+  string tool_call_id = 3; // idempotency key from the agent runtime
+  ToolName name = 4;
+  oneof args {
+    CheckAvailabilityInput check_availability = 5;
+    BookAppointmentInput book_appointment = 6;
+    CaptureLeadInput capture_lead = 7;
+    EscalateToHumanInput escalate_to_human = 8;
+    ScheduleCallbackInput schedule_callback = 9;
+    MarkWonInput mark_won = 10;
+  }
+}
+
+message ToolError {
+  string code = 1;    // machine code, e.g. "SLOT_TAKEN", "INVALID_ARGUMENT"
+  string message = 2; // human-readable, safe to summarize to the caller
+}
+
+// What the backend returns to the agent through the Tool Gateway.
+message ToolResult {
+  string tool_call_id = 1;
+  bool ok = 2;
+  oneof result {
+    CheckAvailabilityResult check_availability = 3;
+    BookAppointmentResult book_appointment = 4;
+    CaptureLeadResult capture_lead = 5;
+    EscalateToHumanResult escalate_to_human = 6;
+    ScheduleCallbackResult schedule_callback = 7;
+    MarkWonResult mark_won = 8;
+  }
+  ToolError error = 9; // set when ok = false
+}
+
+// The gateway surface. AgentCore invokes one tool per call; v0 is unary request/response.
+service ToolGateway {
+  rpc Invoke(ToolInvocation) returns (ToolResult);
+}
