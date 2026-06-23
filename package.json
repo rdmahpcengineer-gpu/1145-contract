@@ -1,6 +1,6 @@
 {
   "name": "@alchemist/contracts",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Single source of truth for every type crossing a service boundary in Alchemist Business OS (SE-1 proto · AC-2 tools · CP-2 OpenAPI · CP-3 GraphQL). Stubs are generated, never hand-written.",
   "license": "UNLICENSED",
   "private": false,
