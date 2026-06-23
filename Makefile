@@ -40,7 +40,10 @@ publish-ts: build-ts
 	npm publish
 
 publish-py: build-py
-	twine upload --repository codeartifact dist/*
+	# Upload ONLY the python sdist/wheel. `make build` also emits the TS bundle
+	# into dist/, so a bare `dist/*` glob feeds twine non-distribution files and
+	# fails ("Unknown distribution format"). Scope to the python artifacts.
+	twine upload --repository codeartifact dist/alchemist_contracts-*
 
 clean:
 	rm -rf gen dist build *.egg-info
